@@ -10,7 +10,7 @@ const int Nr = N + 6; // Number round
 const int Nw = 4 * (Nr + 1); // Number W size
 
 /** 密钥扩展数组 */
-int w[Nw] = {0};
+int w[Nw] = { 0 };
 /** S盒 */
 const unsigned char s_box[16][16] = {
     0x63,0x7C,0x77,0x7B,0xF2,0x6B,0x6F,0xC5,0x30,0x01,0x67,0x2B,0xFE,0xD7,0xAB,0x76,
@@ -29,107 +29,79 @@ const unsigned char s_box[16][16] = {
     0x70,0x3E,0xB5,0x66,0x48,0x03,0xF6,0x0E,0x61,0x35,0x57,0xB9,0x86,0xC1,0x1D,0x9E,
     0xE1,0xF8,0x98,0x11,0x69,0xD9,0x8E,0x94,0x9B,0x1E,0x87,0xE9,0xCE,0x55,0x28,0xDF,
     0x8C,0xA1,0x89,0x0D,0xBF,0xE6,0x42,0x68,0x41,0x99,0x2D,0x0F,0xB0,0x54,0xBB,0x16
-};/** 常量轮值表 */
-const int Rcon[10] = {
-    0x01000000, 0x02000000,
-    0x04000000, 0x08000000,
-    0x10000000, 0x20000000,
-    0x40000000, 0x80000000,
-    0x1b000000, 0x36000000
-};
-/** 列混合要用到的矩阵 */
-const int colMatrix[4][4] = {
-    2, 3, 1, 1,
-    1, 2, 3, 1,
-    1, 1, 2, 3,
-    3, 1, 1, 2
 };
 
 /** 数据转换 */
-int     convertStrToInt(char* str) {
-    return ((int)str[0] & 0x000000ff) << 0b11000 // 24
-         | ((int)str[1] & 0x000000ff) << 0b10000 // 16
-         | ((int)str[2] & 0x000000ff) << 0b01000 // 8
-         | ((int)str[3] & 0x000000ff);
+int     convertChrToInt(char* str) {
+    return ((int)str[0] & 0x000000ff) << 24 // 24
+        |  ((int)str[1] & 0x000000ff) << 16 // 16
+        |  ((int)str[2] & 0x000000ff) << 8  // 8
+        |  ((int)str[3] & 0x000000ff);
+}
+void    splitIntToArray(int num, int array[4]) {
+    array[0] = num >> 24    & 0x000000ff;
+    array[1] = num >> 16    & 0x000000ff;
+    array[2] = num >> 8     & 0x000000ff;
+    array[3] = num          & 0x000000ff;
 }
 int     mergeArrayToInt(int array[4]) {
-    int one = array[0] << 24;
-    int two = array[1] << 16;
-    int three = array[2] << 8;
-    int four = array[3];
-    return one | two | three | four;
+    return (array[0] << 24)
+        |  (array[1] << 16)
+        |  (array[2] << 8 )
+        |  (array[3]);
 }
-void    convertIntToArray(int num, int array[4]) {
-    array[0] = num >> 24 & 0x000000ff;
-    array[1] = num >> 16 & 0x000000ff;
-    array[2] = num >> 8 & 0x000000ff;
-    array[3] = num & 0x000000ff;
+void    splitChrTo4xMatrix(char* str, int m[4]) {
+    for (int i = 0; i < 16; i += 4)
+        m[i / 4] = convertChrToInt(str + i);
 }
-void    split4xMatrix(char* str, int martix[4][4]) {
-    int k = 0;
-    for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) {
-        martix[j][i] = (int)str[k] & 0x000000ff;
-        k++;
+void    merge4xMatrixToChr(int m[4], char* str) {
+    int mArray[4] = { 0 };
+    for (int i = 0; i < 4; i++) {
+        splitIntToArray(m[i], mArray);
+        for (int j = 0; j < 4; j++) 
+            *str++ = (char)mArray[j];
     }
-}
-void    mergeMatrixToStr(int matrix[4][4], char* str) {
-    for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) {
-        std::cout << std::hex << std::setw(2) << std::setfill('0') << matrix[j][i] << " ";
-        *str++ = (char)matrix[j][i];
-    }
-    std::cout << std::dec << std::endl;
 }
 
-/** 调试转储 */
-void    dbg_dumpChar(char* chr, int len) {
-    std::cout << std::hex; /** 启用十六进制输出 */
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < len; j += 4) {
-            std::cout << (int)chr[j + i] << " ";
-        }
-        std::cout << std::endl;
-    }
-    std::cout << std::dec; /** 停用十六进制输出 */
-}
-void    dbg_dumpKey(char key[33]) {
-    std::cout << "= > dbg_dumpKey" << std::endl;
-    dbg_dumpChar(key, 32);
-}
-void    dbg_dumpPlain(char* plain, int len) {
-    std::cout << "= > dbg_dumpPlain" << std::endl;
-    dbg_dumpChar(plain, len);
-}
 void    dbg_dumpW(int w[44]) {
     std::cout << "= > dbg_dumpW" << std::endl;
+    std::cout << "= > w[0] = " << w[0] << std::endl;
     int col0[Nw], col1[Nw], col2[Nw], col3[Nw];
     for (int i = 0; i < Nw; i++) {
-        int row[4] = {0};
-        convertIntToArray(w[i], row);
+        int row[4] = { 0 };
+        splitIntToArray(w[i], row);
         col0[i] = row[0];
         col1[i] = row[1];
         col2[i] = row[2];
         col3[i] = row[3];
     }
     std::cout << std::hex; /** 启用十六进制输出 */
-    for (int i = 0; i < Nw; i++) 
+    for (int i = 0; i < Nw; i++)
         std::cout << std::setw(2) << std::setfill('0') << col0[i] << " ";
     std::cout << std::endl;
-    for (int i = 0; i < Nw; i++) 
+    for (int i = 0; i < Nw; i++)
         std::cout << std::setw(2) << std::setfill('0') << col1[i] << " ";
     std::cout << std::endl;
-    for (int i = 0; i < Nw; i++) 
+    for (int i = 0; i < Nw; i++)
         std::cout << std::setw(2) << std::setfill('0') << col2[i] << " ";
     std::cout << std::endl;
-    for (int i = 0; i < Nw; i++) 
+    for (int i = 0; i < Nw; i++)
         std::cout << std::setw(2) << std::setfill('0') << col3[i] << " ";
     std::cout << std::dec << std::endl; /** 停用十六进制输出 */
 }
-void    dbg_dumpArr(int array[4]) {
-    std::cout << "= > dbg_dumpArr" << std::endl;
-    std::cout << std::hex; /** 启用十六进制输出 */
+void    dbg_dumpMatrix(int m[4]) {
+    std::cout << "= > dbg_dumpMatrix" << std::endl;
+    int matrix[4][4] = { 0 };
     for (int i = 0; i < 4; i++)
-        std::cout << std::setw(2) << std::setfill('0') << array[i] << " ";
-    std::cout << std::dec << std::endl; /** 停用十六进制输出 */
+        splitIntToArray(m[i], matrix[i]);
+    std::cout << std::hex; /** 启用十六进制输出 */
+    for (int i = 0; i < 4; i++) { /* 列 */
+        for (int j = 0; j < 4; j++) { /* 行 */
+            std::cout << std::setw(2) << std::setfill('0') << matrix[j][i] << " ";
+        }
+        std::cout << std::endl;
+    }
+    std::cout << std::dec; /** 停用十六进制输出 */
 }
 void    dbg_dumpMatrix(int matrix[4][4]) {
     std::cout << "= > dbg_dumpMatrix" << std::endl;
@@ -142,18 +114,27 @@ void    dbg_dumpMatrix(int matrix[4][4]) {
     }
     std::cout << std::dec; /** 停用十六进制输出 */
 }
-void    dbg_dumpCipher(char cipher[65]) {
-    std::cout << "= > dbg_dumpCipher" << std::endl;
-    dbg_dumpChar(cipher, 64);
+void    dbg_dumpCol(int m) {
+    std::cout << "= > dbg_dumpCol" << std::endl;
+    int wArray[4] = {0};
+    splitIntToArray(m, wArray);
+    std::cout << std::hex; /** 启用十六进制输出 */
+    for (int i = 0; i < 4; i++)
+        std::cout << std::setw(2) << std::setfill('0') << wArray[i] << " ";
+    std::cout << std::dec << std::endl; /** 停用十六进制输出 */
+}
+void    dbg_splitArrayTo4xMatrix(int m[4], int matrix[4][4]) {
+    for (int i = 0; i < 4; i++)
+        splitIntToArray(m[i], matrix[i]);
 }
 
 /** 字循环 */
-int     RotWord(int w) {
-    int wArray[4] = { 0 };
-    convertIntToArray(w, wArray);
+int     RotWord(int m) {
+    int mArray[4] = { 0 };
+    splitIntToArray(m, mArray);
     for (int i = 3; i > 0; i--)
-        wArray[0] ^= wArray[i] ^= wArray[0] ^= wArray[i];
-    return mergeArrayToInt(wArray);
+        mArray[0] ^= mArray[i] ^= mArray[0] ^= mArray[i];
+    return mergeArrayToInt(mArray);
 }
 /** 从S盒中取对应值 */
 int     getNumFromSBox(int num) {
@@ -162,28 +143,37 @@ int     getNumFromSBox(int num) {
     return s_box[row][col];
 }
 /** 用S盒替换一列W值 */
-int     SubWord(int w) {
-    int wArray[4] = {0};
-    convertIntToArray(w, wArray);
-    int result[4] = { 0 };
-    for (int i = 0; i < 4; i++) {
-        wArray[i] = getNumFromSBox(wArray[i]);
-    }
-    return mergeArrayToInt(wArray);
+int     SubWord(int m) {
+    int mArray[4] = { 0 };
+    splitIntToArray(m, mArray);
+    for (int i = 0; i < 4; i++)
+        mArray[i] = getNumFromSBox(mArray[i]);
+    return mergeArrayToInt(mArray);
 }
 /** 字节代换 */
-void    SubBytes(int matrix[4][4]) {
-    for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) {
-        matrix[i][j] = getNumFromSBox(matrix[i][j]);
-    }
+void    SubBytes(int m[4]) {
+    for (int i = 0; i < 4; i++)
+        m[i] = SubWord(m[i]);
 }
 /** 行移位 */
-void    ShiftRows(int matrix[4][4]) {
+void    ShiftRows(int m[4]) {
+    int matrix[4][4] = { 0 };
+    for (int i = 0; i < 4; i++)
+        splitIntToArray(m[i], matrix[i]);
     for (int i = 0; i < 4; i++) { /** 操作第i行 */
-        for (int j = 0; j < i; j++) { /** 移位j次 */
-            for (int k = 3; k > 0; k--)
-                matrix[i][0] ^= matrix[i][k] ^= matrix[i][0] ^= matrix[i][k];
+        for (int j = 0; j < i; j++) { /** 共移位j次 */
+            for (int k = 3; k > 0; k--) /** 移位一次 */
+                matrix[0][i] ^= matrix[k][i] ^= matrix[0][i] ^= matrix[k][i];
         }
+    }
+    for (int i = 0; i < 4; i++) {
+        m[i] = mergeArrayToInt(matrix[i]);
+    }
+}
+/** 轮密钥加 */
+void    AddRoundKey(int m[4], int round) {
+    for (int i = 0; i < 4; i++) {
+        m[i] = m[i] ^ w[round * 4 + i];
     }
 }
 
@@ -192,45 +182,43 @@ void    ShiftRows(int matrix[4][4]) {
  * URL: https://blog.csdn.net/weixin_46395886/article/details/112793345
  */
 /** 多项式模乘计算 */
-int     GFMul2(int s) {
-    int result = s << 1;
-    int a7 = result & 0x00000100;
-    if (a7 != 0) {
-        result = result & 0x000000ff;
-        result = result ^ 0x1b;
-    }
-    return result;
-}
-int     GFMul3(int s) {
-    return GFMul2(s) ^ s;
-}
 int     GFMul(int n, int s) {
-    switch (n)
-    {
+    int result = 0, a7 = 0;
+    switch (n) {
     case 1:
         return s;
     case 2:
-        return GFMul2(s);
+        result = s << 1;
+        a7 = result & 0x00000100;
+        if (a7 != 0) {
+            result = result & 0x000000ff;
+            result = result ^ 0x1b;
+        }
+        return result;
     case 3:
-        return GFMul3(s);
+        return GFMul(2, s) ^ s;
     default:
         return 0;
     }
 }
+/** 列混合要用到的矩阵 */
+const int colMatrix[4][4] = {
+    2, 3, 1, 1,
+    1, 2, 3, 1,
+    1, 1, 2, 3,
+    3, 1, 1, 2
+};
 /** 列混合 */
-void    MixColumn(int matrix[4][4]) {
-    int matrixCopy[4][4]; 
-    memcpy(matrixCopy, matrix, sizeof(int) * 4 * 4); /** 创建矩阵副本 */
-    for (int i = 0; i < 4; i++) { /** 操作第i列 */
-        int colArray[4] = {
-            matrixCopy[0][i], matrixCopy[1][i], matrixCopy[2][i], matrixCopy[3][i]
-        }; /** 将第i列提取为数组 */
-        for (int j = 0; j < 4; j++) { /** 计算第j个多项式模乘结果 */
-            matrix[j][i] = GFMul(colMatrix[j][0], colArray[0]) 
-                            ^ GFMul(colMatrix[j][1], colArray[1]) 
-                            ^ GFMul(colMatrix[j][2], colArray[2]) 
-                            ^ GFMul(colMatrix[j][3], colArray[3]);
+void    MixColumn(int m[4]) {
+    for (int i = 0; i < 4; i++) {
+        int mArray[4] = { 0 };
+        int tArray[4] = { 0 };
+        splitIntToArray(m[i], mArray);
+        for (int j = 0; j < 4; j++) {
+            tArray[j] = GFMul(colMatrix[j][0], mArray[0]) ^ GFMul(colMatrix[j][1], mArray[1])
+                      ^ GFMul(colMatrix[j][2], mArray[2]) ^ GFMul(colMatrix[j][3], mArray[3]);
         }
+        m[i] = mergeArrayToInt(tArray);
     }
 }
 
@@ -238,54 +226,42 @@ void    MixColumn(int matrix[4][4]) {
  *  REFER: AES key schedule - Wikipedia
  *  URL: https://en.wikipedia.org/wiki/AES_key_schedule
  */
+/** 常量轮值表 */
+const int Rcon[10] = {
+    0x01000000, 0x02000000,
+    0x04000000, 0x08000000,
+    0x10000000, 0x20000000,
+    0x40000000, 0x80000000,
+    0x1b000000, 0x36000000
+};
+/** 扩展密钥 */
 int*    keyExpansion(char* k) {
     for (int i = 0; i < 60; i++) {
-        if (i >= N && i % N == 0) {
-            int roted = RotWord(w[i - 1]);
-            int subed = SubWord(roted);
-            w[i] = w[i - N] ^ subed ^ Rcon[(i / N) - 1];
-        }
-        else if (i >= N && i % N == 4) {
+        if (i >= N && i % N == 0)
+            w[i] = w[i - N] ^ SubWord(RotWord(w[i - 1])) ^ Rcon[(i / N) - 1];
+        else if (i >= N && i % N == 4)
             w[i] = w[i - N] ^ SubWord(w[i - 1]);
-        }
-        else if (i < N) {
-            w[i] = convertStrToInt(k + i * 4);
-        }
-        else {
+        else if (i < N)
+            w[i] = convertChrToInt(k + i * 4);
+        else
             w[i] = w[i - N] ^ w[i - 1];
-        }
     }
     return w;
-}
-/** 轮密钥加 */
-void    AddRoundKey(int matrix[4][4], int round) {
-    for (int i = 0; i < 4; i++) {
-        int wArray[4] = {0};
-        convertIntToArray(w[round * 4 + i], wArray);
-        for (int j = 0; j < 4; j++) {
-            matrix[j][i] = matrix[j][i] ^ wArray[j];
-        }
-    }
 }
 
 int main() {
     char key[33] = "zG2nSeEfSHfvTCHy5LCcqtBbQehKNLXn";
     /** 7a47326e 53654566 53486676 54434879 354c4363 71744262 5165684b 4e4c586e */
-    dbg_dumpKey(key);
-    int pLen = 64; 
-    char plain[65] = "CMhThvPhug72aYa8oJU6bydqGhLfqMjnb6oEwGGWcye98rxQag5pegAZVxsic5f5";
+    const int pLen = 64;
+    char plain[pLen + 1] = "CMhThvPhug72aYa8oJU6bydqGhLfqMjnb6oEwGGWcye98rxQag5pegAZVxsic5f5";
     /** 434d6854 68765068 75673732 61596138 6f4a5536 62796471 47684c66 714d6a6e 62366f45 77474757 63796539 38727851 61673570 6567415a 56787369 63356635 */
-    dbg_dumpPlain(plain, pLen);
-
-    char cipher[65] = { 0 };
+    char cipher[pLen] = { 0 };
 
     int* keyE = keyExpansion(key);
-    int queueMatrix[4][4];
-    dbg_dumpW(w);
+    int queueMatrix[4];
 
-    std::cout << "= > CipherMain" << std::endl;
-    for (int i = 0; i < pLen; i+=16) {
-        split4xMatrix(plain + i, queueMatrix);
+    for (int i = 0; i < pLen; i += 16) {
+        splitChrTo4xMatrix(plain + i, queueMatrix);
 
         AddRoundKey(queueMatrix, 0);
         for (int j = 1; j < Nr; j++) { /** 前Nr-1轮 */
@@ -299,9 +275,12 @@ int main() {
         ShiftRows(queueMatrix);
         AddRoundKey(queueMatrix, Nr);
 
-        mergeMatrixToStr(queueMatrix, cipher + i);
+        merge4xMatrixToChr(queueMatrix, cipher + i);
     }
 
     std::cout << "= > B64EncodedCipher" << std::endl;
     std::cout << (new Base64)->Encode((unsigned char*)cipher, pLen) << std::endl;
+}
+
+void pass() {
 }
